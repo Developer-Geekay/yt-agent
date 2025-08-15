@@ -20,10 +20,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: yt-agent-windows-x64.exe
           - os: macos-latest
-            target: x86_64-apple-darwin # For Intel Macs
-            artifact_name: yt-agent-macos-x64
-          - os: macos-latest
-            target: aarch64-apple-darwin # For Apple Silicon Macs
+            target: aarch64-apple-darwin
             artifact_name: yt-agent-macos-arm64
 
     runs-on: ${{ matrix.os }}
