@@ -1,6 +1,5 @@
 name: Build and Release
 
-# This workflow runs when you create a new tag (e.g., v1.0.0)
 on:
   push:
     tags:
@@ -9,19 +8,21 @@ on:
 jobs:
   build-release:
     name: Build for ${{ matrix.os }}
-    # Use a matrix strategy to run jobs for multiple platforms
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: yt-agent-linux-x64
+            bin_name: yt-agent
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: yt-agent-windows-x64.exe
-          - os: macos-latest
+            bin_name: yt-agent.exe
+          - os: macos-14
             target: aarch64-apple-darwin
             artifact_name: yt-agent-macos-arm64
+            bin_name: yt-agent
 
     runs-on: ${{ matrix.os }}
 
@@ -34,7 +35,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Install necessary dependencies for Linux (like OpenSSL)
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
@@ -43,14 +43,12 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }} --locked
 
       - name: Prepare artifact
-        # This step renames the binary to something predictable
         run: |
           cd target/${{ matrix.target }}/release
-          mv yt-agent ${{ matrix.artifact_name }}
+          mv "${{ matrix.bin_name }}" "${{ matrix.artifact_name }}"
         shell: bash
 
       - name: Upload artifact
-        # This makes the compiled binary available for download
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
