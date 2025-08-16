@@ -3,6 +3,8 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
+// --- FIX 1: Only import Daemonize on Unix platforms ---
+#[cfg(unix)]
 use daemonize::Daemonize;
 use std::collections::HashMap;
 use std::env;
@@ -11,7 +13,6 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use sysinfo::{Pid, System};
-// Make sure `Any` and `CorsLayer` are imported
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::config::{Config, load_config};
@@ -90,18 +91,16 @@ async fn main() -> anyhow::Result<()> {
 
 /// The core function that runs the Axum web server.
 async fn run_server() -> anyhow::Result<()> {
+    // ... This function remains unchanged ...
     tracing_subscriber::fmt::init();
-
     let config = load_config().await?;
     let state = AppState {
         downloads: Arc::new(Mutex::new(HashMap::new())),
         config: Arc::new(RwLock::new(config)),
     };
-
     let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port_str = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("{}:{}", host, port_str);
-
     let app = Router::new()
         .route("/formats", get(handlers::list_formats))
         .route("/download", post(handlers::start_download))
@@ -109,59 +108,64 @@ async fn run_server() -> anyhow::Result<()> {
         .route("/files", get(handlers::list_files))
         .route("/files/*path", get(handlers::get_file))
         .route("/config", get(handlers::get_config).post(handlers::update_config))
-        // --- THIS IS THE MODIFIED PART ---
-        .layer(
-            CorsLayer::new()
-                // Allow requests from any origin
-                .allow_origin(Any)
-                .allow_headers(Any)
-                .allow_methods(Any),
-        )
+        .layer(CorsLayer::new().allow_origin(Any).allow_headers(Any).allow_methods(Any))
         .with_state(state);
-
     tracing::info!("Starting server in foreground, listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
 }
 
-// --- The rest of the server management functions (start, stop, etc.) ---
-// --- NO CHANGES ARE NEEDED IN THE FUNCTIONS BELOW ---
-
-/// Starts the server as a background process.
+/// Starts the server as a background process using platform-specific logic.
 fn start_server() -> anyhow::Result<()> {
     if is_running()? {
         println!("Server is already running.");
         return Ok(());
     }
+
     let pid_file = get_pid_path()?;
     let myself = env::current_exe()?;
     println!("Starting server in the background...");
+
+    // --- FIX 2: Use #[cfg(unix)] for the Unix-specific daemonization code ---
     #[cfg(unix)]
     {
+        // This code will only be compiled for Linux, macOS, etc.
         let daemonize = Daemonize::new().pid_file(&pid_file);
         match daemonize.start() {
             Ok(_) => {
-                Command::new(myself).arg("server").arg("run").spawn()?;
+                // This code runs in the detached background process
+                // We re-launch the executable with the `server run` command
+                Command::new(&myself).arg("server").arg("run").spawn()?;
             }
             Err(e) => eprintln!("Error, failed to daemonize: {}", e),
         }
     }
+
+    // --- Use #[cfg(windows)] for the Windows-specific process spawning code ---
     #[cfg(windows)]
     {
+        // This code will only be compiled for Windows
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let child = Command::new(myself)
-            .arg("server").arg("run")
-            .creation_flags(CREATE_NO_WINDOW).spawn()?;
+        
+        let child = Command::new(&myself)
+            .arg("server")
+            .arg("run")
+            .creation_flags(CREATE_NO_WINDOW) // Prevents a console window from appearing
+            .spawn()?;
+            
+        // Save the PID to the file
         fs::write(&pid_file, child.id().to_string())?;
     }
+
     println!("Server started successfully. PID file at: {}", pid_file.display());
     Ok(())
 }
 
 /// Stops the background server process.
 fn stop_server() -> anyhow::Result<()> {
+    // ... This function remains unchanged ...
     let pid_file = get_pid_path()?;
     if !pid_file.exists() {
         println!("Server is not running (no PID file).");
@@ -183,6 +187,7 @@ fn stop_server() -> anyhow::Result<()> {
 
 /// Checks if the server process is running.
 fn check_status() -> anyhow::Result<()> {
+    // ... This function remains unchanged ...
     if is_running()? {
         let pid_str = fs::read_to_string(get_pid_path()?)?;
         println!("Server is running with PID: {}", pid_str.trim());
@@ -192,8 +197,12 @@ fn check_status() -> anyhow::Result<()> {
     Ok(())
 }
 
+
+// --- Helper Functions ---
+
 /// Gets the path for the server's PID file.
 fn get_pid_path() -> anyhow::Result<PathBuf> {
+    // ... This function remains unchanged ...
     let project_dirs = directories::ProjectDirs::from("com", "YourOrg", "YT-DLP-API")
         .ok_or_else(|| anyhow::anyhow!("Could not find a valid project directory"))?;
     let data_dir = project_dirs.data_local_dir();
@@ -203,6 +212,7 @@ fn get_pid_path() -> anyhow::Result<PathBuf> {
 
 /// Checks if the server is running by checking the PID file and the process list.
 fn is_running() -> anyhow::Result<bool> {
+    // ... This function remains unchanged ...
     let pid_file = get_pid_path()?;
     if !pid_file.exists() {
         return Ok(false);
