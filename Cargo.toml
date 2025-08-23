@@ -1,5 +1,5 @@
 [package]
-name = "yt_dlp_agent"
+name = "yt-agent"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,5 +21,4 @@ tokio-util = { version = "0.7", features = ["io"] }
 toml = "0.8"
 directories = "5.0"
 clap = { version = "4.5", features = ["derive"] }
-daemonize = "0.5.0"
 sysinfo = "0.30.11"

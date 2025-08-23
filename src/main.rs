@@ -3,9 +3,7 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
-// --- FIX 1: Only import Daemonize on Unix platforms ---
-#[cfg(unix)]
-use daemonize::Daemonize;
+// The `daemonize` import has been removed.
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -24,6 +22,8 @@ pub mod error;
 pub mod handlers;
 pub mod models;
 
+// --- State, CLI, and Main logic (No changes here) ---
+// ... (The AppState struct, Cli struct, Commands enums, and main function are identical to the previous version)
 // --- State Type Aliases ---
 pub type DownloadState = Arc<Mutex<HashMap<String, DownloadStatus>>>;
 pub type ConfigState = Arc<RwLock<Config>>;
@@ -87,11 +87,12 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+
 // --- Server Action Functions ---
 
 /// The core function that runs the Axum web server.
 async fn run_server() -> anyhow::Result<()> {
-    // ... This function remains unchanged ...
+    // This function is completely unchanged.
     tracing_subscriber::fmt::init();
     let config = load_config().await?;
     let state = AppState {
@@ -116,7 +117,8 @@ async fn run_server() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Starts the server as a background process using platform-specific logic.
+// === THIS IS THE REWRITTEN FUNCTION ===
+/// Starts the server as a background process using std::process::Command.
 fn start_server() -> anyhow::Result<()> {
     if is_running()? {
         println!("Server is already running.");
@@ -125,47 +127,37 @@ fn start_server() -> anyhow::Result<()> {
 
     let pid_file = get_pid_path()?;
     let myself = env::current_exe()?;
+    
     println!("Starting server in the background...");
 
-    // --- FIX 2: Use #[cfg(unix)] for the Unix-specific daemonization code ---
-    #[cfg(unix)]
-    {
-        // This code will only be compiled for Linux, macOS, etc.
-        let daemonize = Daemonize::new().pid_file(&pid_file);
-        match daemonize.start() {
-            Ok(_) => {
-                // This code runs in the detached background process
-                // We re-launch the executable with the `server run` command
-                Command::new(&myself).arg("server").arg("run").spawn()?;
-            }
-            Err(e) => eprintln!("Error, failed to daemonize: {}", e),
-        }
-    }
+    // Create a command to re-launch the current executable with the 'run' subcommand.
+    let mut cmd = Command::new(&myself);
+    cmd.arg("server").arg("run");
 
-    // --- Use #[cfg(windows)] for the Windows-specific process spawning code ---
+    // On Windows, we add a special flag to prevent a new console window from popping up.
+    // This does not introduce any external dependencies.
     #[cfg(windows)]
     {
-        // This code will only be compiled for Windows
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        
-        let child = Command::new(&myself)
-            .arg("server")
-            .arg("run")
-            .creation_flags(CREATE_NO_WINDOW) // Prevents a console window from appearing
-            .spawn()?;
-            
-        // Save the PID to the file
-        fs::write(&pid_file, child.id().to_string())?;
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
+    // Spawn the child process.
+    let child = cmd.spawn()?;
+
+    // Save the new process's ID to the PID file.
+    fs::write(&pid_file, child.id().to_string())?;
+
     println!("Server started successfully. PID file at: {}", pid_file.display());
+    // The parent process (the 'start' command) exits here,
+    // leaving the child ('run' command) running in the background.
     Ok(())
 }
 
 /// Stops the background server process.
 fn stop_server() -> anyhow::Result<()> {
-    // ... This function remains unchanged ...
+    // This function is completely unchanged.
     let pid_file = get_pid_path()?;
     if !pid_file.exists() {
         println!("Server is not running (no PID file).");
@@ -187,7 +179,7 @@ fn stop_server() -> anyhow::Result<()> {
 
 /// Checks if the server process is running.
 fn check_status() -> anyhow::Result<()> {
-    // ... This function remains unchanged ...
+    // This function is completely unchanged.
     if is_running()? {
         let pid_str = fs::read_to_string(get_pid_path()?)?;
         println!("Server is running with PID: {}", pid_str.trim());
@@ -198,11 +190,9 @@ fn check_status() -> anyhow::Result<()> {
 }
 
 
-// --- Helper Functions ---
-
+// --- Helper Functions (Unchanged) ---
 /// Gets the path for the server's PID file.
 fn get_pid_path() -> anyhow::Result<PathBuf> {
-    // ... This function remains unchanged ...
     let project_dirs = directories::ProjectDirs::from("com", "YourOrg", "YT-DLP-API")
         .ok_or_else(|| anyhow::anyhow!("Could not find a valid project directory"))?;
     let data_dir = project_dirs.data_local_dir();
@@ -212,7 +202,6 @@ fn get_pid_path() -> anyhow::Result<PathBuf> {
 
 /// Checks if the server is running by checking the PID file and the process list.
 fn is_running() -> anyhow::Result<bool> {
-    // ... This function remains unchanged ...
     let pid_file = get_pid_path()?;
     if !pid_file.exists() {
         return Ok(false);

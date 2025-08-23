@@ -265,15 +265,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
-name = "daemonize"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab8bfdaacb3c887a54d41bdf48d3af8873b3f5566469f8ba21b92057509f116e"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "directories"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1473,13 +1464,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "yt_dlp_agent"
+name = "yt-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
  "clap",
- "daemonize",
  "directories",
  "once_cell",
  "percent-encoding",
